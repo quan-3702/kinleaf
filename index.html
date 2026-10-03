@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kinleaf – Family Tree Maker</title>
+  <meta name="description" content="Build your family tree step by step, add photos and print it. Simple, private and offline – your family data stays on your PC.">
+  <meta name="theme-color" content="#14532d">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><img src="icon-192.png" alt="" width="30" height="30"><span>Kinleaf</span></div>
+    <input id="treeTitle" class="tree-title" type="text" maxlength="60" placeholder="Name of your family tree" aria-label="Tree title">
+    <div class="top-btns">
+      <button id="printBtn" class="tb">🖨 Print</button>
+      <button id="imgBtn" class="tb">🖼 Save picture</button>
+      <button id="moreBtn" class="tb">☰ More</button>
+      <button id="proBtn" class="pro-btn" hidden>★ Get Pro</button>
+    </div>
+    <div id="menu" class="menu" hidden>
+      <button id="bigImgBtn">Save large picture for poster printing <span class="badge pro-only">PRO</span></button>
+      <button id="backupBtn">Save a backup file</button>
+      <button id="restoreFileBtn">Open a backup file…</button>
+      <button id="gedOutBtn">Export GEDCOM file <span class="badge pro-only">PRO</span></button>
+      <button id="gedInBtn">Import GEDCOM file… <span class="badge pro-only">PRO</span></button>
+      <button id="sampleBtn">Load the sample family</button>
+      <button id="clearBtn" class="danger">Start a new empty tree…</button>
+      <a href="mailto:thequan03072002@gmail.com?subject=Kinleaf%20feedback">✉ Feedback &amp; support</a>
+      <a href="https://apps.microsoft.com/detail/9NPWMMZ1NPPV" target="_blank" rel="noopener">More apps: PDF Toolbox</a>
+      <a href="https://apps.microsoft.com/detail/9NF418NKG80Z" target="_blank" rel="noopener">More apps: SnapPDF</a>
+    </div>
+    <input id="fileIn" type="file" hidden>
+  </header>
+
+  <main class="layout">
+    <aside class="left">
+      <input id="search" type="search" placeholder="Find a person…" aria-label="Find a person">
+      <ul id="peopleList" class="people"></ul>
+      <p id="countLine" class="hint"></p>
+    </aside>
+
+    <section class="stage">
+      <div class="stagebar">
+        <label>Tree starts at <select id="rootSel"></select></label>
+        <span class="zoom">
+          <button id="zoomOut" title="Zoom out">−</button>
+          <button id="zoomFit" title="Show whole tree">Fit</button>
+          <button id="zoomIn" title="Zoom in">+</button>
+        </span>
+      </div>
+      <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      <p id="stageHint" class="stage-hint">Click a person to edit or add relatives · drag to move · scroll to zoom</p>
+    </section>
+
+    <aside class="right" id="panel"></aside>
+  </main>
+
+  <dialog id="welcome" class="dlg">
+    <h2>Welcome to Kinleaf</h2>
+    <p class="muted">Let's start your family tree with one person – usually yourself. You can add parents, a spouse, children, brothers and sisters afterwards.</p>
+    <label class="field">First name <input id="wFirst" type="text" maxlength="40"></label>
+    <label class="field">Last name <input id="wLast" type="text" maxlength="40"></label>
+    <div class="field">Gender
+      <div class="seg" id="wSex"><button data-v="m">Male</button><button data-v="f">Female</button><button data-v="" class="on">Not set</button></div>
+    </div>
+    <label class="field">Year or date of birth <span class="hint">(optional)</span><input id="wBirth" type="text" maxlength="30" placeholder="e.g. 1958 or 12 Mar 1958"></label>
+    <div class="row-btns">
+      <button id="wStart" class="primary">Start my tree</button>
+      <button id="wSample" class="ghost">Look at a sample family first</button>
+    </div>
+  </dialog>
+
+  <dialog id="pick" class="dlg">
+    <h2 id="pickTitle">Who is the other parent?</h2>
+    <div id="pickList" class="pick-list"></div>
+    <div class="row-btns"><button id="pickCancel" class="ghost">Cancel</button></div>
+  </dialog>
+
+  <dialog id="proDialog" class="dlg">
+    <h2>Kinleaf Pro</h2>
+    <p class="muted">One-time purchase. Yours forever on this Microsoft account.</p>
+    <ul class="pro-list">
+      <li><strong>Unlimited people</strong> in your tree <span class="muted">(Free: 20)</span></li>
+      <li><strong>Large poster picture</strong> – sharp enough to print and hang on the wall</li>
+      <li><strong>GEDCOM import and export</strong> – move your tree to or from Ancestry, MyHeritage, FamilySearch and other programs</li>
+    </ul>
+    <p id="proMsg" class="pro-msg" hidden></p>
+    <div class="row-btns">
+      <button id="buyBtn" class="primary">Unlock Pro</button>
+      <button id="restoreBtn" class="ghost">Restore purchase</button>
+      <button id="closePro" class="ghost">Not now</button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+  <div id="printArea"></div>
+  <script src="app.js"></script>
+</body>
+</html>

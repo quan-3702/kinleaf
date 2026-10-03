@@ -1,0 +1,16 @@
+{
+  "name": "Kinleaf - Family Tree Maker",
+  "short_name": "Kinleaf",
+  "description": "Build your family tree step by step, add photos and print it. Simple, private and offline – your family data stays on your PC.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#14532d",
+  "theme_color": "#14532d",
+  "categories": ["lifestyle", "productivity", "education"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
