@@ -7,7 +7,7 @@ const FREE_PEOPLE = 20;
 const STORE_BILLING = 'https://store.microsoft.com/billing';
 const PRO_SKU = 'kinleaf_pro';
 const PRO_IDS = [PRO_SKU];
-let STORE_URL = 'https://apps.microsoft.com/search?query=Kinleaf';
+let STORE_URL = 'https://apps.microsoft.com/detail/9NRR32J91340';
 let proAvailable = false; // Pro limits apply only when the Store actually sells the add-on
 let proSku = PRO_SKU;
 let isPro = false;
