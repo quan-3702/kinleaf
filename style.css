@@ -50,6 +50,8 @@ textarea { min-height: 70px; resize: vertical; }
 
 .stage { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .stagebar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--card); font-size: 14px; }
+.sb-left { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.stagebar label[hidden] { display: none; }
 .stagebar label { display: flex; align-items: center; gap: 8px; color: var(--muted); min-width: 0; }
 .stagebar select { width: auto; max-width: 340px; padding: 6px 8px; }
 .zoom { display: flex; gap: 4px; }

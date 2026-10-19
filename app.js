@@ -114,7 +114,7 @@ let saveTimer = 0;
 function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => dbSet('tree', tree).catch(() => toast('Could not save – your disk may be full')), 300); }
 
 function newPerson(init) {
-  const p = Object.assign({ id: uid('p'), first: '', last: '', sex: '', birth: '', place: '', death: '', deceased: false, notes: '', photo: '' }, init || {});
+  const p = Object.assign({ id: uid('p'), first: '', last: '', sex: '', birth: '', place: '', death: '', deathPlace: '', deceased: false, notes: '', photo: '' }, init || {});
   tree.people[p.id] = p;
   return p;
 }
@@ -331,6 +331,104 @@ function svgBody(L, th, forExport) {
   });
   return s;
 }
+// ---------- fan chart (ancestors of one person) ----------
+const FAN_R0 = 86, FAN_IN = 92, FAN_OUT = 128;
+const fanRad = (g) => (g === 0 ? FAN_R0 : g <= 3 ? FAN_R0 + g * FAN_IN : FAN_R0 + 3 * FAN_IN + (g - 3) * FAN_OUT);
+function fanSlots(root, gens) {
+  const out = [[root]];
+  for (let g = 1; g <= gens; g++) {
+    const row = [];
+    out[g - 1].forEach((pid) => { const f = pid ? parentFam(pid) : null; row.push(f ? f.a : null, f ? f.b : null); });
+    out.push(row);
+  }
+  return out;
+}
+function fanLayout() {
+  const root = tree.people[tree.focus] ? tree.focus : (people()[0] || {}).id;
+  const gens = tree.fanGen || 5;
+  const R = fanRad(gens), pad = 30;
+  const L = { fan: true, root, gens, slots: root ? fanSlots(root, gens) : [], w: R * 2 + pad * 2, h: R + FAN_R0 * 0.55 + pad * 2, cx: R + pad, cy: R + pad, cards: [] };
+  L.slots.forEach((row) => row.forEach((pid) => pid && L.cards.push({ pid })));
+  return L;
+}
+const polar = (cx, cy, r, a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+const f1 = (n) => Math.round(n * 10) / 10;
+function fanFill(g, k, p, th) {
+  if (!p) return th.card;
+  const dark = th === THEME.dark;
+  if (g === 0) return dark ? '#24402c' : '#d9efdf';
+  const hues = [205, 172, 330, 32];
+  const br = g === 1 ? k * 2 : Math.floor(k / Math.pow(2, g - 2));
+  const L = dark ? Math.min(34, 20 + g * 2) : Math.min(93, 76 + g * 3);
+  return `hsl(${hues[br]} ${dark ? 35 : 55}% ${L}%)`;
+}
+function fanBody(L, th, forExport) {
+  if (!L.root) return '';
+  const { cx, cy } = L;
+  let s = '', defs = '';
+  for (let g = 1; g <= L.gens; g++) {
+    const r0 = fanRad(g - 1), r1 = fanRad(g), n = Math.pow(2, g), rm = (r0 + r1) / 2;
+    L.slots[g].forEach((pid, k) => {
+      const a0 = Math.PI + Math.PI * k / n, a1 = Math.PI + Math.PI * (k + 1) / n;
+      const [x0, y0] = polar(cx, cy, r1, a0), [x1, y1] = polar(cx, cy, r1, a1), [x2, y2] = polar(cx, cy, r0, a1), [x3, y3] = polar(cx, cy, r0, a0);
+      const p = pid ? tree.people[pid] : null;
+      const isSel = !forExport && pid && pid === selected;
+      const d = `M${f1(x0)},${f1(y0)} A${r1},${r1} 0 0 1 ${f1(x1)},${f1(y1)} L${f1(x2)},${f1(y2)} A${r0},${r0} 0 0 0 ${f1(x3)},${f1(y3)} Z`;
+      s += `<g${p ? ` class="p" data-id="${pid}"` : ''}><path d="${d}" fill="${fanFill(g, k, p, th)}" stroke="${isSel ? th.sel : p ? th.bg : th.line}" stroke-width="${isSel ? 4 : p ? 2 : 1}"${p ? '' : ' stroke-dasharray="4 4" opacity=".55"'}/>`;
+      if (p) {
+        const name = fullName(p), span = lifespan(p);
+        const arcLen = rm * Math.PI / n;
+        if (g <= 3) {
+          // writing along the arc
+          const fs = g === 1 ? 17 : g === 2 ? 15 : 13;
+          const maxCh = Math.floor((arcLen - 14) / (fs * 0.56));
+          const rows = [];
+          if (g === 3 && name.length > maxCh && p.first && p.last) rows.push(clip(p.first, maxCh), clip(p.last, maxCh));
+          else rows.push(clip(name, maxCh));
+          if (span) rows.push(span);
+          rows.forEach((txt, i) => {
+            const rr = rm + ((rows.length - 1) / 2 - i) * (fs + 4) - fs * 0.35;
+            const [ax, ay] = polar(cx, cy, rr, a0 + 0.004), [bx, by] = polar(cx, cy, rr, a1 - 0.004);
+            const id = `fa${g}_${k}_${i}`;
+            defs += `<path id="${id}" d="M${f1(ax)},${f1(ay)} A${f1(rr)},${f1(rr)} 0 0 1 ${f1(bx)},${f1(by)}"/>`;
+            const isSpan = txt === span && i === rows.length - 1;
+            s += `<text font-size="${isSpan ? fs - 3 : fs}" font-weight="${isSpan ? 400 : 700}" fill="${isSpan ? th.muted : th.text}" text-anchor="middle"><textPath href="#${id}" startOffset="50%">${esc(txt)}</textPath></text>`;
+          });
+        } else {
+          // writing outwards along the radius
+          const am = (a0 + a1) / 2, deg = am * 180 / Math.PI;
+          const flip = am < Math.PI * 1.5;
+          const fs = Math.max(8, Math.min(13, arcLen * 0.36));
+          const maxCh = Math.floor((r1 - r0 - 12) / (fs * 0.56));
+          const rows = arcLen > fs * 2.6 ? [clip(name, maxCh), span].filter(Boolean) : [clip(name + (span ? ' ' + span : ''), maxCh)];
+          const [tx, ty] = polar(cx, cy, rm, am);
+          s += `<g transform="translate(${f1(tx)},${f1(ty)}) rotate(${f1(flip ? deg + 180 : deg)})">`;
+          rows.forEach((txt, i) => {
+            const yy = ((i - (rows.length - 1) / 2) * (fs + 2)) + fs * 0.35;
+            const isSpan = i === 1;
+            s += `<text x="0" y="${f1(yy)}" text-anchor="middle" font-size="${isSpan ? fs - 1.5 : fs}" font-weight="${isSpan ? 400 : 700}" fill="${isSpan ? th.muted : th.text}">${esc(txt)}</text>`;
+          });
+          s += '</g>';
+        }
+      }
+      s += '</g>';
+    });
+  }
+  // the person in the middle
+  const p = tree.people[L.root];
+  const isSel = !forExport && L.root === selected;
+  const r = FAN_R0;
+  s += `<g class="p" data-id="${L.root}"><path d="M${cx - r},${cy} A${r},${r} 0 0 1 ${cx + r},${cy} Z" fill="${fanFill(0, 0, p, th)}" stroke="${isSel ? th.sel : th.bg}" stroke-width="${isSel ? 4 : 2}"/>`;
+  if (p.photo) s += `<clipPath id="fanc"><circle cx="${cx}" cy="${cy - r + 34}" r="24"/></clipPath><image href="${p.photo}" x="${cx - 24}" y="${cy - r + 10}" width="48" height="48" preserveAspectRatio="xMidYMid slice" clip-path="url(#fanc)"/>`;
+  const ty = p.photo ? cy - 18 : cy - 36;
+  [p.first, p.last].filter(Boolean).forEach((t, i) => { s += `<text x="${cx}" y="${ty + i * 19}" text-anchor="middle" font-size="16" font-weight="700" fill="${th.text}">${esc(clip(t, 16))}</text>`; });
+  const span = lifespan(p);
+  if (span) s += `<text x="${cx}" y="${cy - 2}" text-anchor="middle" font-size="12" fill="${th.muted}">${esc(span)}</text>`;
+  s += '</g>';
+  // generation labels under the fan
+  return `<defs>${defs}</defs>` + s;
+}
+const isFan = () => tree.chart === 'fan';
 let view = { x: 0, y: 0, k: 1 };
 let lastLayout = null;
 const themeNow = () => (matchMedia('(prefers-color-scheme: dark)').matches ? THEME.dark : THEME.light);
@@ -343,8 +441,12 @@ function fit() {
   applyView();
 }
 function drawTree(refit) {
-  const L = lastLayout = layout();
-  $('svg').innerHTML = `<g id="vp" font-family="Segoe UI, system-ui, sans-serif">${svgBody(L, themeNow(), false)}</g>`;
+  const L = lastLayout = isFan() ? fanLayout() : layout();
+  $('svg').innerHTML = `<g id="vp" font-family="Segoe UI, system-ui, sans-serif">${isFan() ? fanBody(L, themeNow(), false) : svgBody(L, themeNow(), false)}</g>`;
+  $('chartSel').value = isFan() ? 'fan' : 'tree';
+  $('rootLab').hidden = isFan();
+  $('genLab').hidden = !isFan();
+  $('fanGen').value = String(tree.fanGen || 5);
   if (refit) fit(); else applyView();
   const sel = $('rootSel');
   const opts = rootOptions();
@@ -354,12 +456,12 @@ function drawTree(refit) {
   $('stageHint').hidden = !L.cards.length;
 }
 function exportSvg() {
-  const L = layout();
+  const L = isFan() ? fanLayout() : layout();
   const th = THEME.light;
   const title = tree.title.trim();
   const top = title ? 56 : 0;
   const w = L.w, h = L.h + top;
-  const body = `<rect width="${w}" height="${h}" fill="#ffffff"/>` + (title ? `<text x="${w / 2}" y="44" text-anchor="middle" font-size="30" font-weight="700" fill="${th.text}">${esc(title)}</text>` : '') + `<g transform="translate(0,${top})">${svgBody(L, th, true)}</g>`;
+  const body = `<rect width="${w}" height="${h}" fill="#ffffff"/>` + (title ? `<text x="${w / 2}" y="44" text-anchor="middle" font-size="30" font-weight="700" fill="${th.text}">${esc(title)}</text>` : '') + `<g transform="translate(0,${top})">${isFan() ? fanBody(L, th, true) : svgBody(L, th, true)}</g>`;
   return { w, h, svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" font-family="Segoe UI, system-ui, sans-serif">${body}</svg>` };
 }
 function download(blob, name) {
@@ -441,7 +543,7 @@ function renderPanel() {
       <label class="field">Birthplace<input id="pPlace" type="text" maxlength="60" value="${esc(p.place)}"></label>
     </div>
     <label class="check"><input id="pDead" type="checkbox" ${p.deceased ? 'checked' : ''}> This person has passed away</label>
-    ${p.deceased ? `<label class="field">Died<input id="pDeath" type="text" maxlength="30" placeholder="e.g. 2015" value="${esc(p.death)}"></label>` : ''}
+    ${p.deceased ? `<div class="two"><label class="field">Died<input id="pDeath" type="text" maxlength="30" placeholder="e.g. 2015" value="${esc(p.death)}"></label><label class="field">Place of death<input id="pDPlace" type="text" maxlength="60" value="${esc(p.deathPlace || '')}"></label></div>` : ''}
     <label class="field">Notes<textarea id="pNotes" maxlength="2000" placeholder="Job, stories, anything to remember…">${esc(p.notes)}</textarea></label>
     <p class="sect">Add a relative of ${esc(p.first || 'this person')}</p>
     <div class="rel">
@@ -455,7 +557,7 @@ function renderPanel() {
     <button id="pCenter" class="ghost">Show this person's family</button>
     <button id="pDelete" class="ghost danger">Delete this person</button>`;
   const bind = (id, key) => { const i = $(id); if (i) i.addEventListener('input', () => { p[key] = i.value; drawTree(false); renderList(); save(); }); };
-  bind('pFirst', 'first'); bind('pLast', 'last'); bind('pBirth', 'birth'); bind('pPlace', 'place'); bind('pDeath', 'death'); bind('pNotes', 'notes');
+  bind('pFirst', 'first'); bind('pLast', 'last'); bind('pBirth', 'birth'); bind('pPlace', 'place'); bind('pDeath', 'death'); bind('pDPlace', 'deathPlace'); bind('pNotes', 'notes');
   $('pSex').querySelectorAll('button').forEach((b) => { b.onclick = () => { p.sex = b.dataset.v; drawTree(false); renderPanel(); save(); }; });
   $('pDead').onchange = (e) => { p.deceased = e.target.checked; if (!p.deceased) p.death = ''; drawTree(false); renderList(); renderPanel(); save(); };
   $('pPhoto').onclick = () => pickFile('image/*', async (f) => { p.photo = await shrinkPhoto(f); drawTree(false); renderPanel(); save(); });
@@ -513,16 +615,33 @@ function pickFile(accept, cb) {
 }
 
 // ---------- GEDCOM ----------
+const gedText = (v) => String(v || '').replace(/@/g, '@@');
+function gedLong(L, lvl, tag, text) {
+  // a long text is split into CONT (new line) and CONC (same line) pieces of at most 200 characters
+  String(text).split(/\r?\n/).forEach((ln, i) => {
+    const parts = gedText(ln).match(/[\s\S]{1,200}/g) || [''];
+    parts.forEach((pt, j) => L.push(i === 0 && j === 0 ? `${lvl} ${tag} ${pt}` : `${lvl + 1} ${j === 0 ? 'CONT' : 'CONC'} ${pt}`.trimEnd()));
+  });
+}
 function toGedcom() {
   const ps = people(), fs = Object.values(tree.fams);
   const pi = new Map(ps.map((p, i) => [p.id, `@I${i + 1}@`])), fi = new Map(fs.map((f, i) => [f.id, `@F${i + 1}@`]));
-  const L = ['0 HEAD', '1 SOUR Kinleaf', '1 GEDC', '2 VERS 5.5.1', '2 FORM LINEAGE-LINKED', '1 CHAR UTF-8'];
+  const d = new Date(), mon = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'][d.getMonth()];
+  const L = ['0 HEAD', '1 SOUR Kinleaf', '2 NAME Kinleaf family tree maker', `1 DATE ${d.getDate()} ${mon} ${d.getFullYear()}`, '1 GEDC', '2 VERS 5.5.1', '2 FORM LINEAGE-LINKED', '1 CHAR UTF-8', '1 SUBM @U1@'];
+  if (tree.title) L.push(`1 FILE ${gedText(tree.title)}`);
+  L.push('0 @U1@ SUBM', '1 NAME Kinleaf user');
   ps.forEach((p) => {
-    L.push(`0 ${pi.get(p.id)} INDI`, `1 NAME ${p.first} /${p.last}/`);
+    L.push(`0 ${pi.get(p.id)} INDI`, `1 NAME ${gedText(p.first)} /${gedText(p.last)}/`.replace(/\s+\/\//, ' //'));
+    if (p.first) L.push(`2 GIVN ${gedText(p.first)}`);
+    if (p.last) L.push(`2 SURN ${gedText(p.last)}`);
     if (p.sex) L.push(`1 SEX ${p.sex.toUpperCase()}`);
-    if (p.birth || p.place) { L.push('1 BIRT'); if (p.birth) L.push(`2 DATE ${p.birth}`); if (p.place) L.push(`2 PLAC ${p.place}`); }
-    if (p.deceased || p.death) { L.push(p.death ? '1 DEAT' : '1 DEAT Y'); if (p.death) L.push(`2 DATE ${p.death}`); }
-    if (p.notes) p.notes.split(/\r?\n/).forEach((t, i) => L.push(`${i ? '2 CONT' : '1 NOTE'} ${t}`));
+    if (p.birth || p.place) { L.push('1 BIRT'); if (p.birth) L.push(`2 DATE ${gedText(p.birth)}`); if (p.place) L.push(`2 PLAC ${gedText(p.place)}`); }
+    if (p.deceased || p.death || p.deathPlace) {
+      L.push(p.death || p.deathPlace ? '1 DEAT' : '1 DEAT Y');
+      if (p.death) L.push(`2 DATE ${gedText(p.death)}`);
+      if (p.deathPlace) L.push(`2 PLAC ${gedText(p.deathPlace)}`);
+    }
+    if (p.notes) gedLong(L, 1, 'NOTE', p.notes);
     const pf = parentFam(p.id);
     if (pf) L.push(`1 FAMC ${fi.get(pf.id)}`);
     famsOf(p.id).forEach((f) => L.push(`1 FAMS ${fi.get(f.id)}`));
@@ -531,44 +650,73 @@ function toGedcom() {
     L.push(`0 ${fi.get(f.id)} FAM`);
     if (f.a) L.push(`1 HUSB ${pi.get(f.a)}`);
     if (f.b) L.push(`1 WIFE ${pi.get(f.b)}`);
+    if (f.marr || f.marrPlace) { L.push('1 MARR'); if (f.marr) L.push(`2 DATE ${gedText(f.marr)}`); if (f.marrPlace) L.push(`2 PLAC ${gedText(f.marrPlace)}`); }
     f.children.forEach((c) => L.push(`1 CHIL ${pi.get(c)}`));
   });
   L.push('0 TRLR');
   return L.join('\r\n') + '\r\n';
 }
+// reads GEDCOM 5.5 / 5.5.1 / 7 files from Ancestry, MyHeritage, FamilySearch, Gramps, RootsMagic, Legacy …
 function fromGedcom(text) {
   const t = { title: '', people: {}, fams: {}, focus: null, rootFam: null };
-  const ids = {};
-  let cur = null, sub = '';
-  text.replace(/^﻿/, '').split(/\r?\n/).forEach((line) => {
+  const ids = {}, notes = {}, famc = [], fams = {};
+  let cur = null, l1 = '', l2 = '', nameCount = 0, noteTarget = null;
+  const blank = () => ({ id: uid('p'), first: '', last: '', sex: '', birth: '', place: '', death: '', deathPlace: '', deceased: false, notes: '', photo: '' });
+  const un = (v) => String(v || '').replace(/@@/g, '@');
+  text.replace(/^﻿/, '').split(/\r\n|\r|\n/).forEach((line) => {
     const m = /^\s*(\d+)\s+(@[^@]+@\s+)?(\S+)\s?(.*)$/.exec(line);
     if (!m) return;
-    const lvl = Number(m[1]), xref = (m[2] || '').trim(), tag = m[3].toUpperCase(), val = m[4] || '';
+    const lvl = Number(m[1]), xref = (m[2] || '').trim(), tag = m[3].toUpperCase(), val = un(m[4] || '');
     if (lvl === 0) {
-      cur = null;
-      if (tag === 'INDI') { cur = { kind: 'p', o: { id: uid('p'), first: '', last: '', sex: '', birth: '', place: '', death: '', deceased: false, notes: '', photo: '' } }; ids[xref] = cur.o.id; t.people[cur.o.id] = cur.o; }
-      if (tag === 'FAM') { cur = { kind: 'f', o: { id: uid('f'), a: null, b: null, children: [] }, raw: { c: [] } }; t.fams[cur.o.id] = cur.o; cur.o._raw = cur.raw; }
+      cur = null; l1 = ''; noteTarget = null;
+      if (tag === 'HEAD') cur = { kind: 'h' };
+      else if (tag === 'INDI') { cur = { kind: 'p', o: blank(), gv: '', sn: '' }; nameCount = 0; ids[xref] = cur.o.id; t.people[cur.o.id] = cur.o; }
+      else if (tag === 'FAM') { cur = { kind: 'f', o: { id: uid('f'), a: null, b: null, children: [], marr: '', marrPlace: '' }, raw: { c: [] } }; fams[xref] = cur.o; t.fams[cur.o.id] = cur.o; cur.o._raw = cur.raw; }
+      else if (tag === 'NOTE' || tag === 'SNOTE') { cur = { kind: 'n', x: xref }; notes[xref] = val; noteTarget = { o: notes, k: xref }; }
       return;
     }
     if (!cur) return;
-    if (lvl === 1) sub = tag;
+    if (lvl === 1) { l1 = tag; l2 = ''; } else if (lvl === 2) l2 = tag;
+    // CONT / CONC continue the text above them
+    if ((tag === 'CONT' || tag === 'CONC') && noteTarget) { noteTarget.o[noteTarget.k] += (tag === 'CONT' ? '\n' : '') + val; return; }
+    if (cur.kind === 'n') return;
+    if (cur.kind === 'h') { if (lvl === 1 && tag === 'FILE' && val && !/\.(ged|txt)$/i.test(val)) t.title = val; return; }
+    if (lvl === 1) noteTarget = null;
     if (cur.kind === 'p') {
       const p = cur.o;
-      if (lvl === 1 && tag === 'NAME') { const n = /^([^/]*)\/?([^/]*)\/?/.exec(val); p.first = (n[1] || '').trim(); p.last = (n[2] || '').trim(); }
+      if (lvl === 1 && tag === 'NAME') {
+        nameCount++;
+        if (nameCount === 1) { const n = /^([^/]*)\/?([^/]*)\/?(.*)$/.exec(val); p.first = ((n[1] || '') + ' ' + (n[3] || '')).replace(/\s+/g, ' ').trim(); p.last = (n[2] || '').trim(); }
+      }
+      else if (lvl === 2 && l1 === 'NAME' && nameCount === 1 && tag === 'GIVN' && !p.first) p.first = val.trim();
+      else if (lvl === 2 && l1 === 'NAME' && nameCount === 1 && tag === 'SURN' && !p.last) p.last = val.trim();
       else if (lvl === 1 && tag === 'SEX') p.sex = /^M/i.test(val) ? 'm' : /^F/i.test(val) ? 'f' : '';
-      else if (lvl === 1 && tag === 'DEAT') p.deceased = true;
-      else if (lvl === 1 && tag === 'NOTE') p.notes = val;
-      else if (lvl === 2 && sub === 'NOTE' && (tag === 'CONT' || tag === 'CONC')) p.notes += (tag === 'CONT' ? '\n' : '') + val;
-      else if (lvl === 2 && tag === 'DATE' && sub === 'BIRT') p.birth = val;
-      else if (lvl === 2 && tag === 'PLAC' && sub === 'BIRT') p.place = val;
-      else if (lvl === 2 && tag === 'DATE' && sub === 'DEAT') { p.death = val; p.deceased = true; }
-    } else if (lvl === 1) {
-      if (tag === 'HUSB') cur.raw.a = val.trim();
-      else if (tag === 'WIFE') cur.raw.b = val.trim();
-      else if (tag === 'CHIL') cur.raw.c.push(val.trim());
+      else if (lvl === 1 && (tag === 'DEAT' || tag === 'BURI' || tag === 'CREM')) p.deceased = true;
+      else if (lvl === 1 && tag === 'NOTE') {
+        if (/^@[^@]+@$/.test(val.trim())) { cur.noteRefs = (cur.noteRefs || []).concat(val.trim()); p._refs = cur.noteRefs; }
+        else { p.notes += (p.notes ? '\n' : '') + val; noteTarget = { o: p, k: 'notes' }; }
+      }
+      else if (lvl === 1 && tag === 'OCCU' && val) p.notes += (p.notes ? '\n' : '') + 'Occupation: ' + val;
+      else if (lvl === 1 && tag === 'FAMC') famc.push([p.id, val.trim()]);
+      else if (lvl === 2 && tag === 'DATE' && (l1 === 'BIRT' || (l1 === 'CHR' || l1 === 'BAPM') && !p.birth)) p.birth = l1 === 'BIRT' ? val : 'bapt. ' + val;
+      else if (lvl === 2 && tag === 'PLAC' && (l1 === 'BIRT' || (l1 === 'CHR' || l1 === 'BAPM') && !p.place)) p.place = val;
+      else if (lvl === 2 && tag === 'DATE' && l1 === 'DEAT') p.death = val;
+      else if (lvl === 2 && tag === 'PLAC' && l1 === 'DEAT') p.deathPlace = val;
+    } else if (cur.kind === 'f') {
+      if (lvl === 1 && tag === 'HUSB') cur.raw.a = val.trim();
+      else if (lvl === 1 && tag === 'WIFE') cur.raw.b = val.trim();
+      else if (lvl === 1 && tag === 'CHIL') cur.raw.c.push(val.trim());
+      else if (lvl === 2 && l1 === 'MARR' && tag === 'DATE') cur.o.marr = val;
+      else if (lvl === 2 && l1 === 'MARR' && tag === 'PLAC') cur.o.marrPlace = val;
     }
   });
+  Object.values(t.people).forEach((p) => {
+    if (p._refs) { p.notes = [p.notes].concat(p._refs.map((r) => notes[r] || '')).filter(Boolean).join('\n'); delete p._refs; }
+    p.notes = p.notes.slice(0, 2000);
+  });
   Object.values(t.fams).forEach((f) => { const r = f._raw; delete f._raw; f.a = ids[r.a] || null; f.b = ids[r.b] || null; f.children = r.c.map((x) => ids[x]).filter(Boolean); });
+  // some programs list a child only on the child (FAMC) and not on the family (CHIL)
+  famc.forEach(([pid, x]) => { const f = fams[x]; if (f && !Object.values(t.fams).some((g) => g.children.includes(pid))) f.children.push(pid); });
   return t;
 }
 
@@ -598,7 +746,7 @@ let toastTimer = 0;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 4000); }
 function validTree(t) { return t && typeof t.people === 'object' && typeof t.fams === 'object'; }
 function loadTree(t) {
-  tree = { title: t.title || '', people: t.people, fams: t.fams, focus: t.focus, rootFam: t.rootFam || null };
+  tree = { title: t.title || '', people: t.people, fams: t.fams, focus: t.focus, rootFam: t.rootFam || null, chart: t.chart || 'tree', fanGen: t.fanGen || 5 };
   selected = null;
   cleanup();
   refreshAll(true);
@@ -644,8 +792,16 @@ $('rootSel').onchange = (e) => { tree.rootFam = e.target.value; drawTree(true); 
 $('search').addEventListener('input', renderList);
 $('treeTitle').addEventListener('input', () => { tree.title = $('treeTitle').value; save(); });
 
-$('printBtn').onclick = printTree;
-$('imgBtn').onclick = () => savePicture(2400);
+const fanPro = () => isFan() && needsPro('Printing and saving fan charts is part of Pro. You can look at the fan chart for free.');
+$('printBtn').onclick = () => { if (!fanPro()) printTree(); };
+$('imgBtn').onclick = () => { if (!fanPro()) savePicture(isFan() ? 3600 : 2400); };
+$('chartSel').onchange = (e) => {
+  tree.chart = e.target.value;
+  if (isFan() && selected && tree.people[selected]) tree.focus = selected;
+  drawTree(true); save();
+  if (isFan()) toast('Fan chart of ' + fullName(tree.people[tree.focus]) + '. Click someone, then “Show this person’s family” to put them in the middle.');
+};
+$('fanGen').onchange = (e) => { tree.fanGen = Number(e.target.value); drawTree(true); save(); };
 $('moreBtn').onclick = (e) => { e.stopPropagation(); $('menu').hidden = !$('menu').hidden; };
 document.addEventListener('click', () => { $('menu').hidden = true; });
 $('bigImgBtn').onclick = () => { if (!needsPro('The large poster picture is part of Pro.')) savePicture(9000); };
@@ -667,7 +823,7 @@ $('gedInBtn').onclick = () => {
     const n = Object.keys(t.people).length;
     if (!n) { toast('No people were found in that file'); return; }
     if (people().length && !confirm(`Replace the tree on screen with the ${n} people from this GEDCOM file?`)) return;
-    t.title = f.name.replace(/\.[^.]+$/, '');
+    if (!t.title) t.title = f.name.replace(/\.[^.]+$/, '');
     t.focus = Object.keys(t.people)[0];
     loadTree(t);
     toast(`Imported ${n} people`);

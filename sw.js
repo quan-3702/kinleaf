@@ -1,4 +1,4 @@
-const CACHE = 'kinleaf-v3';
+const CACHE = 'kinleaf-v4';
 const ASSETS = ['./', 'index.html', 'help.html', 'help-1.jpg', 'style.css', 'app.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
