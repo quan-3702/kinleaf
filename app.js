@@ -492,6 +492,134 @@ function printTree() {
   window.print();
 }
 
+
+// ---------- wall poster ----------
+const POSTER_STYLES = {
+  classic: { name: 'Classic parchment', bg1: '#f7efdc', bg2: '#e6d5b1', frame: '#7c5a2e', title: '#4a3216', sub: '#7c5a2e', font: "Georgia, 'Times New Roman', serif", deco: 'flourish', tree: '#7c5a2e',
+    th: { bg: '#f7efdc', card: '#fffaf0', text: '#3b2a14', muted: '#7c6a4f', line: '#a68a5b', m: '#4f7aa6', f: '#b0607e', u: '#a68a5b', sel: '#7c5a2e', selBg: '#fffaf0' } },
+  botanical: { name: 'Botanical green', bg1: '#f8faf3', bg2: '#e9f0df', frame: '#4d7c0f', title: '#14532d', sub: '#4d7c0f', font: 'Georgia, serif', deco: 'leaves', tree: '#4d7c0f',
+    th: { bg: '#f8faf3', card: '#ffffff', text: '#1a2e1a', muted: '#5f6b55', line: '#86a372', m: '#3b82c4', f: '#c8548c', u: '#86a372', sel: '#166534', selBg: '#ffffff' } },
+  modern: { name: 'Modern white', bg1: '#ffffff', bg2: '#ffffff', frame: '#1f2937', title: '#111827', sub: '#6b7280', font: "'Segoe UI', system-ui, sans-serif", deco: 'line', tree: null,
+    th: { bg: '#ffffff', card: '#ffffff', text: '#111827', muted: '#6b7280', line: '#9ca3af', m: '#2563eb', f: '#db2777', u: '#9ca3af', sel: '#111827', selBg: '#ffffff' } },
+  heritage: { name: 'Heritage navy & gold', bg1: '#16244a', bg2: '#0b1530', frame: '#d4a017', title: '#f5d77a', sub: '#e5c869', font: 'Georgia, serif', deco: 'flourish', tree: '#d4a017',
+    th: { bg: '#16244a', card: '#1e3061', text: '#f8f1dc', muted: '#cbbd8f', line: '#b8973d', m: '#8fbcf0', f: '#f2a7c7', u: '#b8973d', sel: '#d4a017', selBg: '#1e3061' } },
+};
+const POSTER_SIZES = { '18x24': ['18 × 24 in', 18, 24], '24x36': ['24 × 36 in', 24, 36], '16x20': ['16 × 20 in', 16, 20], '12x18': ['12 × 18 in', 12, 18], '11x17': ['11 × 17 in (Tabloid)', 11, 17], a1: ['A1 – 594 × 841 mm', 23.39, 33.11], a2: ['A2 – 420 × 594 mm', 16.54, 23.39], a3: ['A3 – 297 × 420 mm', 11.69, 16.54], letter: ['Letter – one sheet', 8.5, 11], a4: ['A4 – one sheet', 8.27, 11.69] };
+const posterOpts = () => {
+  const lastNames = people().map((p) => p.last).filter(Boolean);
+  const common = lastNames.sort((a, b) => lastNames.filter((x) => x === b).length - lastNames.filter((x) => x === a).length)[0];
+  tree.poster = Object.assign({ style: 'classic', title: tree.title.trim() || (common ? `The ${common} Family` : 'Our Family Tree'), sub: '', size: '18x24', orient: 'auto', paper: 'letter' }, tree.poster || {});
+  return tree.poster;
+};
+function posterGeom(o, L) {
+  const [, wi, hi] = POSTER_SIZES[o.size] || POSTER_SIZES['18x24'];
+  const land = o.orient === 'land' || (o.orient === 'auto' && L.w > L.h * 1.15);
+  return land ? [hi, wi] : [wi, hi];
+}
+function flourish(cx, y, w, c) {
+  const h = w * 0.06;
+  return `<g fill="none" stroke="${c}" stroke-width="${w * 0.006}" stroke-linecap="round"><path d="M${cx - w / 2},${y} C${cx - w * 0.3},${y - h} ${cx - w * 0.15},${y + h} ${cx - w * 0.04},${y}"/><path d="M${cx + w / 2},${y} C${cx + w * 0.3},${y - h} ${cx + w * 0.15},${y + h} ${cx + w * 0.04},${y}"/></g><path d="M${cx},${y - w * 0.03} L${cx + w * 0.03},${y} L${cx},${y + w * 0.03} L${cx - w * 0.03},${y}Z" fill="${c}"/>`;
+}
+function leafSprig(x, y, len, rot, c) {
+  let s = `<g transform="translate(${x},${y}) rotate(${rot})" opacity=".85"><path d="M0,0 Q${len * 0.12},${len * 0.5} 0,${len}" stroke="${c}" stroke-width="${len * 0.02}" fill="none"/>`;
+  for (let k = 1; k <= 7; k++) { const yy = len * k / 8, sd = k % 2 ? 1 : -1; s += `<ellipse cx="${sd * len * 0.1}" cy="${yy}" rx="${len * 0.09}" ry="${len * 0.04}" transform="rotate(${sd * 35} ${sd * len * 0.1} ${yy})" fill="${c}"/>`; }
+  return s + '</g>';
+}
+function bigTree(cx, by, h, c) { // a soft tree silhouette behind the chart
+  const tw = h * 0.06;
+  let s = `<g fill="${c}" opacity=".07"><path d="M${cx - tw},${by} C${cx - tw * 0.6},${by - h * 0.25} ${cx - tw * 0.4},${by - h * 0.45} ${cx},${by - h * 0.55} C${cx + tw * 0.4},${by - h * 0.45} ${cx + tw * 0.6},${by - h * 0.25} ${cx + tw},${by}Z"/>`;
+  [[0, 0.72, 0.3], [-0.24, 0.62, 0.22], [0.24, 0.62, 0.22], [-0.16, 0.82, 0.2], [0.16, 0.82, 0.2], [0, 0.9, 0.17], [-0.34, 0.5, 0.15], [0.34, 0.5, 0.15]].forEach(([dx, dy, r]) => { s += `<circle cx="${cx + dx * h}" cy="${by - dy * h}" r="${r * h}"/>`; });
+  return s + '</g>';
+}
+function posterSvg() {
+  const o = posterOpts(), st = POSTER_STYLES[o.style] || POSTER_STYLES.classic;
+  const L = isFan() ? fanLayout() : layout();
+  const [wi, hi] = posterGeom(o, L), W = wi * 72, H = hi * 72, u = Math.min(W, H);
+  const m = u * 0.045;
+  let b = `<defs><linearGradient id="pbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${st.bg1}"/><stop offset="1" stop-color="${st.bg2}"/></linearGradient></defs><rect width="${W}" height="${H}" fill="url(#pbg)"/>`;
+  b += `<rect x="${m}" y="${m}" width="${W - 2 * m}" height="${H - 2 * m}" fill="none" stroke="${st.frame}" stroke-width="${u * 0.006}"/>`;
+  if (st.deco !== 'line') b += `<rect x="${m * 1.35}" y="${m * 1.35}" width="${W - 2.7 * m}" height="${H - 2.7 * m}" fill="none" stroke="${st.frame}" stroke-width="${u * 0.0018}"/>`;
+  const tfs = u * 0.062, sfs = u * 0.024, ty = m * 2.2 + tfs;
+  const title = o.title.trim(), sub = o.sub.trim();
+  const tsize = Math.min(tfs, (W - 5 * m) / Math.max(1, title.length * 0.55));
+  if (title) b += `<text x="${W / 2}" y="${ty}" text-anchor="middle" font-family="${st.font}" font-size="${tsize}" font-weight="700" fill="${st.title}">${esc(title)}</text>`;
+  let yy = ty + tfs * 0.45;
+  if (st.deco === 'flourish' || st.deco === 'leaves') { b += flourish(W / 2, yy + u * 0.012, u * 0.34, st.frame); yy += u * 0.04; }
+  else { b += `<line x1="${W / 2 - u * 0.12}" y1="${yy + u * 0.01}" x2="${W / 2 + u * 0.12}" y2="${yy + u * 0.01}" stroke="${st.frame}" stroke-width="${u * 0.003}"/>`; yy += u * 0.03; }
+  if (sub) { b += `<text x="${W / 2}" y="${yy + sfs}" text-anchor="middle" font-family="${st.font}" font-size="${sfs}" font-style="italic" fill="${st.sub}">${esc(sub)}</text>`; yy += sfs * 1.6; }
+  if (st.deco === 'leaves') b += leafSprig(m * 1.6, m * 1.6, u * 0.16, -40, st.frame) + leafSprig(W - m * 1.6, m * 1.6, u * 0.16, 40, st.frame) + leafSprig(m * 1.6, H - m * 1.6, u * 0.14, 220, st.frame) + leafSprig(W - m * 1.6, H - m * 1.6, u * 0.14, 140, st.frame);
+  const ax = m * 2.2, ay = yy + m * 0.6, aw = W - 4.4 * m, ah = H - ay - m * 2.2;
+  if (st.tree && !isFan()) b += bigTree(W / 2, ay + ah, ah * 0.98, st.tree);
+  if (L.w && L.h) {
+    const k = Math.min(aw / L.w, ah / L.h), ox = ax + (aw - L.w * k) / 2, oy = ay + (ah - L.h * k) / 2;
+    b += `<g transform="translate(${ox.toFixed(2)},${oy.toFixed(2)}) scale(${k.toFixed(4)})" font-family="Segoe UI, system-ui, sans-serif">${isFan() ? fanBody(L, st.th, true) : svgBody(L, st.th, true)}</g>`;
+  }
+  return { w: W, h: H, wi, hi, svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${b}</svg>` };
+}
+function renderPoster() {
+  const o = posterOpts();
+  $('poStyle').value = o.style; $('poSize').value = o.size; $('poOrient').value = o.orient; $('poPaper').value = o.paper;
+  if (document.activeElement !== $('poTitle')) $('poTitle').value = o.title;
+  if (document.activeElement !== $('poSub')) $('poSub').value = o.sub;
+  const p = posterSvg();
+  $('poPreview').innerHTML = p.svg.replace(/ width="[\d.]+" height="[\d.]+"/, ' preserveAspectRatio="xMidYMid meet"');
+  const single = o.size === 'letter' || o.size === 'a4';
+  const t = tiles(p, o);
+  $('poPrintBtn').textContent = single ? '🖨 Print' : `🖨 Print on ${t.length} ${o.paper === 'a4' ? 'A4' : 'Letter'} sheets`;
+  $('poPaperRow').hidden = single;
+  $('poInfo').textContent = `${(POSTER_SIZES[o.size] || POSTER_SIZES['18x24'])[0]}, ${p.wi > p.hi ? 'landscape' : 'portrait'}` + (single ? '' : ` · or save the poster file and print it at a copy or photo shop`);
+}
+function tiles(p, o) { // pieces of the poster for a home printer, with a small overlap for taping
+  const [pw, ph] = o.paper === 'a4' ? [8.27, 11.69] : [8.5, 11];
+  const mg = 0.35, ov = 0.25, tw = pw - 2 * mg, th = ph - 2 * mg;
+  const cols = Math.max(1, Math.ceil((p.wi - ov) / (tw - ov))), rows = Math.max(1, Math.ceil((p.hi - ov) / (th - ov)));
+  const out = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) out.push({ r, c, x: c * (tw - ov), y: r * (th - ov), tw, th, pw, ph, mg, rows, cols });
+  return out;
+}
+function posterPrint() {
+  if (needsPro('Printing and saving wall posters is part of Pro. You can design and preview your poster for free.')) return;
+  const o = posterOpts(), p = posterSvg(), inner = p.svg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '');
+  let pages, size;
+  if (o.size === 'letter' || o.size === 'a4') {
+    size = `${o.size === 'a4' ? 'A4' : 'letter'} ${p.wi > p.hi ? 'landscape' : 'portrait'}`;
+    pages = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${p.w} ${p.h}" style="width:${p.wi}in;height:${p.hi}in;display:block">${inner}</svg>`];
+  } else {
+    const T = tiles(p, o);
+    size = `${o.paper === 'a4' ? 'A4' : 'letter'} portrait`;
+    pages = T.map((t) => {
+      const X = t.x * 72, Y = t.y * 72, w = t.tw * 72, h = t.th * 72, mk = 14;
+      const marks = `<g stroke="#999" stroke-width=".6"><path d="M${X},${Y - mk} V${Y} H${X - mk}"/><path d="M${X + w},${Y - mk} V${Y} H${X + w + mk}"/><path d="M${X},${Y + h + mk} V${Y + h} H${X - mk}"/><path d="M${X + w},${Y + h + mk} V${Y + h} H${X + w + mk}"/></g>`;
+      const label = `<text x="${X + 4}" y="${Y + h + 16}" font-size="8" fill="#888" font-family="Segoe UI, sans-serif">Row ${t.r + 1} of ${t.rows} · Column ${t.c + 1} of ${t.cols} – overlap ¼ in with the next sheet</text>`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${X - t.mg * 72} ${Y - t.mg * 72} ${t.pw * 72} ${t.ph * 72}" style="width:${t.pw}in;height:${t.ph}in;display:block;page-break-after:always">${inner.replace(/id="pbg"/g, 'id="pbg"')}${marks}${label}</svg>`;
+    });
+  }
+  // every printed page gets its own ids: the preview in the closed dialog has the same ids, and hidden gradients and clip paths are not drawn
+  pages = pages.map((pg, i) => pg.replace(/id="([^"]+)"/g, `id="$1_p${i}"`).replace(/url\(#([^)]+)\)/g, `url(#$1_p${i})`));
+  $('pageRule').textContent = `@page { size: ${size}; margin: 0; } @media print { #printArea svg { max-height: none !important; width: auto !important; } }`;
+  $('printArea').innerHTML = pages.join('');
+  window.print();
+  setTimeout(() => { $('pageRule').textContent = ''; }, 1000);
+}
+async function posterSave() {
+  if (needsPro('Printing and saving wall posters is part of Pro. You can design and preview your poster for free.')) return;
+  const p = posterSvg();
+  const dpi = Math.min(300, Math.floor(Math.sqrt(40e6 / (p.wi * p.hi))));
+  toast('Making your poster file…');
+  const img = new Image(), url = URL.createObjectURL(new Blob([p.svg], { type: 'image/svg+xml' }));
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+  const c = document.createElement('canvas'); c.width = Math.round(p.wi * dpi); c.height = Math.round(p.hi * dpi);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  URL.revokeObjectURL(url);
+  const o = posterOpts();
+  c.toBlob((bl) => { download(bl, `${fileBase()}-poster-${o.size}.jpg`); toast(`Saved a ${(POSTER_SIZES[o.size] || [''])[0]} poster file (${c.width} × ${c.height} px, ${dpi} dpi). Upload it to a copy or photo shop to print.`); }, 'image/jpeg', 0.92);
+}
+function openPoster() {
+  if (!people().length) { toast('Add some people to your tree first'); return; }
+  renderPoster();
+  if (!$('posterDlg').open) $('posterDlg').showModal();
+}
+
 // ---------- people list ----------
 function renderList() {
   const q = $('search').value.trim().toLowerCase();
@@ -746,7 +874,7 @@ let toastTimer = 0;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 4000); }
 function validTree(t) { return t && typeof t.people === 'object' && typeof t.fams === 'object'; }
 function loadTree(t) {
-  tree = { title: t.title || '', people: t.people, fams: t.fams, focus: t.focus, rootFam: t.rootFam || null, chart: t.chart || 'tree', fanGen: t.fanGen || 5 };
+  tree = { title: t.title || '', people: t.people, fams: t.fams, focus: t.focus, rootFam: t.rootFam || null, chart: t.chart || 'tree', fanGen: t.fanGen || 5, poster: t.poster };
   selected = null;
   cleanup();
   refreshAll(true);
@@ -804,6 +932,16 @@ $('chartSel').onchange = (e) => {
 $('fanGen').onchange = (e) => { tree.fanGen = Number(e.target.value); drawTree(true); save(); };
 $('moreBtn').onclick = (e) => { e.stopPropagation(); $('menu').hidden = !$('menu').hidden; };
 document.addEventListener('click', () => { $('menu').hidden = true; });
+
+$('posterBtn').onclick = openPoster;
+$('poClose').onclick = () => $('posterDlg').close();
+['poStyle', 'poSize', 'poOrient', 'poPaper'].forEach((id) => { $(id).onchange = (e) => { const k = { poStyle: 'style', poSize: 'size', poOrient: 'orient', poPaper: 'paper' }[id]; posterOpts()[k] = e.target.value; renderPoster(); save(); }; });
+$('poTitle').addEventListener('input', (e) => { posterOpts().title = e.target.value; renderPoster(); save(); });
+$('poSub').addEventListener('input', (e) => { posterOpts().sub = e.target.value; renderPoster(); save(); });
+$('poPrintBtn').onclick = posterPrint;
+$('poSaveBtn').onclick = posterSave;
+$('poStyle').innerHTML = Object.entries(POSTER_STYLES).map(([k, v]) => `<option value="${k}">${esc(v.name)}</option>`).join('');
+$('poSize').innerHTML = Object.entries(POSTER_SIZES).map(([k, v]) => `<option value="${k}">${esc(v[0])}</option>`).join('');
 $('bigImgBtn').onclick = () => { if (!needsPro('The large poster picture is part of Pro.')) savePicture(9000); };
 $('backupBtn').onclick = () => download(new Blob([JSON.stringify({ app: 'kinleaf', v: 1, tree })], { type: 'application/json' }), `${fileBase()}.kinleaf.json`);
 $('restoreFileBtn').onclick = () => pickFile('.json,application/json', async (f) => {

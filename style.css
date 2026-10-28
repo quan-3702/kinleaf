@@ -97,3 +97,10 @@ textarea { min-height: 70px; resize: vertical; }
   #printArea { display: block; }
   #printArea svg { width: 100%; height: auto; max-height: 180mm; }
 }
+
+.poster-dlg { max-width: 1040px; }
+.poster-grid { display: grid; grid-template-columns: 320px 1fr; gap: 22px; margin-top: 8px; }
+.poster-preview { display: flex; align-items: center; justify-content: center; background: #8883; border-radius: 12px; padding: 14px; min-height: 420px; max-height: 70vh; }
+.poster-preview svg { max-width: 100%; max-height: calc(70vh - 28px); height: auto; box-shadow: 0 8px 26px rgba(0,0,0,.3); }
+.small { font-size: 13px; }
+@media (max-width: 760px) { .poster-grid { grid-template-columns: 1fr; } }

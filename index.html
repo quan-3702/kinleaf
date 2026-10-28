@@ -17,6 +17,7 @@
     <div class="top-btns">
       <button id="printBtn" class="tb">🖨 Print</button>
       <button id="imgBtn" class="tb">🖼 Save picture</button>
+      <button id="posterBtn" class="tb">🪧 Wall poster</button>
       <button id="moreBtn" class="tb">☰ More</button>
       <button id="proBtn" class="pro-btn" hidden>★ Get Pro</button>
     </div>
@@ -80,11 +81,35 @@
     <div class="row-btns"><button id="pickCancel" class="ghost">Cancel</button></div>
   </dialog>
 
+  <dialog id="posterDlg" class="dlg poster-dlg">
+    <h2>🪧 Wall poster</h2>
+    <p class="muted">Turn your tree into a framed poster – a lovely gift for parents and grandparents.</p>
+    <div class="poster-grid">
+      <div>
+        <label class="field">Title<input id="poTitle" type="text" maxlength="60"></label>
+        <label class="field">Line under the title<input id="poSub" type="text" maxlength="90" placeholder="e.g. Four generations · Made with love, Christmas 2026"></label>
+        <label class="field">Style<select id="poStyle"></select></label>
+        <label class="field">Poster size<select id="poSize"></select></label>
+        <label class="field">Direction<select id="poOrient"><option value="auto">Best fit for my tree</option><option value="port">Portrait (tall)</option><option value="land">Landscape (wide)</option></select></label>
+        <label id="poPaperRow" class="field">Home printer paper<select id="poPaper"><option value="letter">Letter</option><option value="a4">A4</option></select></label>
+        <p id="poInfo" class="muted small"></p>
+        <div class="row-btns">
+          <button id="poSaveBtn" class="primary">💾 Save poster file</button>
+          <button id="poPrintBtn" class="ghost">🖨 Print</button>
+          <button id="poClose" class="ghost">Close</button>
+        </div>
+        <p class="muted small">Tip: the chart on the poster is the one on screen. Switch between the family tree and the fan chart, or choose whose family to show, before you open the poster. Photos of people appear on the poster too.</p>
+      </div>
+      <div id="poPreview" class="poster-preview"></div>
+    </div>
+  </dialog>
+
   <dialog id="proDialog" class="dlg">
     <h2>Kinleaf Pro</h2>
     <p class="muted">One-time purchase. Yours forever on this Microsoft account.</p>
     <ul class="pro-list">
       <li><strong>Unlimited people</strong> in your tree <span class="muted">(Free: 20)</span></li>
+      <li><strong>Wall poster designer</strong> – 4 framed styles, sizes up to 24 × 36 in; save a print-shop file or print it on Letter / A4 sheets at home</li>
       <li><strong>Large poster picture</strong> – sharp enough to print and hang on the wall</li>
       <li><strong>Fan charts</strong> – print or save a colourful fan of up to 7 generations of ancestors, perfect as a gift or wall poster</li>
       <li><strong>GEDCOM import and export</strong> – move your tree to or from Ancestry, MyHeritage, FamilySearch and other programs</li>
@@ -98,6 +123,7 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
+  <style id="pageRule"></style>
   <div id="printArea"></div>
   <script src="app.js"></script>
 </body>
