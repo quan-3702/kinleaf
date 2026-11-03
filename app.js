@@ -9,6 +9,7 @@ const PRO_SKU = 'kinleaf_pro';
 const PRO_IDS = [PRO_SKU];
 let STORE_URL = 'https://apps.microsoft.com/detail/9NRR32J91340';
 let proAvailable = false; // Pro limits apply only when the Store actually sells the add-on
+try { if ('getDigitalGoodsService' in window && localStorage.getItem('kinleaf-proavail') === '1') proAvailable = true; } catch (_) {} // keep Pro limits when offline
 let proSku = PRO_SKU;
 let isPro = false;
 try { isPro = localStorage.getItem('kinleaf-pro') === '1'; } catch (_) {}
@@ -28,17 +29,26 @@ function setPro(v) {
   document.body.classList.toggle('unlocked', unlocked());
   renderList();
 }
+async function checkProAfterBuy() {
+  for (let i = 0; i < 6; i++) {
+    if (await checkPro()) return true;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  proMessage('Thank you! If Pro is not unlocked within a minute, click “Restore purchase”.');
+  return false;
+}
 async function checkPro() {
   const svc = await billing();
   if (!svc) return false;
   try {
     const details = await svc.getDetails(PRO_IDS).catch(() => []);
-    proAvailable = details.length > 0;
+    if (details.length) { proAvailable = true; try { localStorage.setItem('kinleaf-proavail', '1'); } catch (_) {} }
     if (details[0]) { proSku = details[0].itemId; if (!PRO_IDS.includes(proSku)) PRO_IDS.push(proSku); }
     const list = await svc.listPurchases();
     const owned = list.some((p) => PRO_IDS.includes(p.itemId));
-    setPro(owned);
-    return owned;
+    if (owned || details.length) { setPro(owned); return owned; }
+    setPro(isPro); // Store did not answer (offline): keep what we knew
+    return isPro;
   } catch (_) { return isPro; }
 }
 function proMessage(text) { const m = $('proMsg'); m.hidden = !text; m.textContent = text || ''; }
@@ -73,7 +83,7 @@ async function buyPro() {
     proMessage('Purchase could not be completed: ' + (e.message || e));
     return;
   }
-  if (await checkPro()) { proMessage('Thank you! Pro is unlocked. ★'); setTimeout(() => $('proDialog').close(), 1500); }
+  if (await checkProAfterBuy()) { proMessage('Thank you! Pro is unlocked. ★'); setTimeout(() => $('proDialog').close(), 1500); }
 }
 function needsPro(reason) {
   if (unlocked()) return false;
@@ -317,9 +327,9 @@ function svgBody(L, th, forExport) {
     const isSel = !forExport && c.pid === selected;
     const first = clip(p.first || (p.last ? '' : '(no name yet)'), 15), last = clip(p.last || '', 15);
     const cx = c.x + 38, cy = c.y + CH / 2;
-    s += `<g class="p" data-id="${c.pid}">`;
+    s += `<g class="p" data-id="${esc(c.pid)}">`;
     s += `<rect x="${c.x}" y="${c.y}" width="${CW}" height="${CH}" rx="12" fill="${isSel ? th.selBg : th.card}" stroke="${isSel ? th.sel : col}" stroke-width="${isSel ? 4 : 2}"/>`;
-    if (p.photo) s += `<clipPath id="cp${c.pid}"><circle cx="${cx}" cy="${cy}" r="27"/></clipPath><image href="${p.photo}" x="${cx - 27}" y="${cy - 27}" width="54" height="54" preserveAspectRatio="xMidYMid slice" clip-path="url(#cp${c.pid})"/><circle cx="${cx}" cy="${cy}" r="27" fill="none" stroke="${col}" stroke-width="2"/>`;
+    if (p.photo) s += `<clipPath id="cp${esc(c.pid)}"><circle cx="${cx}" cy="${cy}" r="27"/></clipPath><image href="${esc(p.photo)}" x="${cx - 27}" y="${cy - 27}" width="54" height="54" preserveAspectRatio="xMidYMid slice" clip-path="url(#cp${esc(c.pid)})"/><circle cx="${cx}" cy="${cy}" r="27" fill="none" stroke="${col}" stroke-width="2"/>`;
     else s += `<circle cx="${cx}" cy="${cy}" r="27" fill="${col}" opacity=".18"/><text x="${cx}" y="${cy + 7}" text-anchor="middle" font-size="20" font-weight="700" fill="${col}">${esc(((p.first || '?')[0] + ((p.last || '')[0] || '')).toUpperCase())}</text>`;
     const tx = c.x + 74;
     const span = lifespan(p);
@@ -374,7 +384,7 @@ function fanBody(L, th, forExport) {
       const p = pid ? tree.people[pid] : null;
       const isSel = !forExport && pid && pid === selected;
       const d = `M${f1(x0)},${f1(y0)} A${r1},${r1} 0 0 1 ${f1(x1)},${f1(y1)} L${f1(x2)},${f1(y2)} A${r0},${r0} 0 0 0 ${f1(x3)},${f1(y3)} Z`;
-      s += `<g${p ? ` class="p" data-id="${pid}"` : ''}><path d="${d}" fill="${fanFill(g, k, p, th)}" stroke="${isSel ? th.sel : p ? th.bg : th.line}" stroke-width="${isSel ? 4 : p ? 2 : 1}"${p ? '' : ' stroke-dasharray="4 4" opacity=".55"'}/>`;
+      s += `<g${p ? ` class="p" data-id="${esc(pid)}"` : ''}><path d="${d}" fill="${fanFill(g, k, p, th)}" stroke="${isSel ? th.sel : p ? th.bg : th.line}" stroke-width="${isSel ? 4 : p ? 2 : 1}"${p ? '' : ' stroke-dasharray="4 4" opacity=".55"'}/>`;
       if (p) {
         const name = fullName(p), span = lifespan(p);
         const arcLen = rm * Math.PI / n;
@@ -418,10 +428,10 @@ function fanBody(L, th, forExport) {
   const p = tree.people[L.root];
   const isSel = !forExport && L.root === selected;
   const r = FAN_R0;
-  s += `<g class="p" data-id="${L.root}"><path d="M${cx - r},${cy} A${r},${r} 0 0 1 ${cx + r},${cy} Z" fill="${fanFill(0, 0, p, th)}" stroke="${isSel ? th.sel : th.bg}" stroke-width="${isSel ? 4 : 2}"/>`;
-  if (p.photo) s += `<clipPath id="fanc"><circle cx="${cx}" cy="${cy - r + 34}" r="24"/></clipPath><image href="${p.photo}" x="${cx - 24}" y="${cy - r + 10}" width="48" height="48" preserveAspectRatio="xMidYMid slice" clip-path="url(#fanc)"/>`;
-  const ty = p.photo ? cy - 18 : cy - 36;
-  [p.first, p.last].filter(Boolean).forEach((t, i) => { s += `<text x="${cx}" y="${ty + i * 19}" text-anchor="middle" font-size="16" font-weight="700" fill="${th.text}">${esc(clip(t, 16))}</text>`; });
+  s += `<g class="p" data-id="${esc(L.root)}"><path d="M${cx - r},${cy} A${r},${r} 0 0 1 ${cx + r},${cy} Z" fill="${fanFill(0, 0, p, th)}" stroke="${isSel ? th.sel : th.bg}" stroke-width="${isSel ? 4 : 2}"/>`;
+  if (p.photo) s += `<clipPath id="fanc"><circle cx="${cx}" cy="${cy - r + 34}" r="24"/></clipPath><image href="${esc(p.photo)}" x="${cx - 24}" y="${cy - r + 10}" width="48" height="48" preserveAspectRatio="xMidYMid slice" clip-path="url(#fanc)"/>`;
+  const ty = p.photo ? cy - 16 : cy - 36; // with a photo there is room for one line of name above the dates
+  (p.photo ? [clip(fullName(p), 18)] : [p.first, p.last].filter(Boolean).map((t) => clip(t, 16))).forEach((t, i) => { s += `<text x="${cx}" y="${ty + i * 19}" text-anchor="middle" font-size="16" font-weight="700" fill="${th.text}">${esc(t)}</text>`; });
   const span = lifespan(p);
   if (span) s += `<text x="${cx}" y="${cy - 2}" text-anchor="middle" font-size="12" fill="${th.muted}">${esc(span)}</text>`;
   s += '</g>';
@@ -451,7 +461,7 @@ function drawTree(refit) {
   const sel = $('rootSel');
   const opts = rootOptions();
   const me = tree.people[tree.focus];
-  sel.innerHTML = opts.map((o) => `<option value="${o.fam}">${esc(o.label)}</option>`).join('') + (me ? `<option value="hour">${esc(fullName(me))} – ancestors and descendants</option><option value="self">${esc(fullName(me))} – descendants only</option>` : '');
+  sel.innerHTML = opts.map((o) => `<option value="${esc(o.fam)}">${esc(o.label)}</option>`).join('') + (me ? `<option value="hour">${esc(fullName(me))} – ancestors and descendants</option><option value="self">${esc(fullName(me))} – descendants only</option>` : '');
   sel.value = tree.rootFam || 'self';
   $('stageHint').hidden = !L.cards.length;
 }
@@ -488,7 +498,8 @@ async function savePicture(maxSide) {
 }
 function printTree() {
   if (!people().length) return;
-  $('printArea').innerHTML = exportSvg().svg.replace(/ width="[\d.]+" height="[\d.]+"/, '');
+  // own ids for the printed copy: the same ids on screen are inside a hidden svg, so photos would lose their round clip
+  $('printArea').innerHTML = exportSvg().svg.replace(/ width="[\d.]+" height="[\d.]+"/, '').replace(/id="([^"]+)"/g, 'id="$1_pr"').replace(/url\(#([^)]+)\)/g, 'url(#$1_pr)').replace(/href="#([^"]+)"/g, 'href="#$1_pr"');
   window.print();
 }
 
@@ -658,7 +669,7 @@ function renderPanel() {
   const hasF = pf && pf.a, hasM = pf && pf.b;
   el.innerHTML = `
     <div class="photo-row">
-      ${p.photo ? `<img class="photo" src="${p.photo}" alt="">` : `<div class="photo">${esc((p.first || '?')[0].toUpperCase())}</div>`}
+      ${p.photo ? `<img class="photo" src="${esc(p.photo)}" alt="">` : `<div class="photo">${esc((p.first || '?')[0].toUpperCase())}</div>`}
       <div><button id="pPhoto" class="ghost">${p.photo ? 'Change photo' : 'Add a photo'}</button>${p.photo ? ' <button id="pNoPhoto" class="ghost">Remove</button>' : ''}</div>
     </div>
     <div class="two">
@@ -687,8 +698,8 @@ function renderPanel() {
   const bind = (id, key) => { const i = $(id); if (i) i.addEventListener('input', () => { p[key] = i.value; drawTree(false); renderList(); save(); }); };
   bind('pFirst', 'first'); bind('pLast', 'last'); bind('pBirth', 'birth'); bind('pPlace', 'place'); bind('pDeath', 'death'); bind('pDPlace', 'deathPlace'); bind('pNotes', 'notes');
   $('pSex').querySelectorAll('button').forEach((b) => { b.onclick = () => { p.sex = b.dataset.v; drawTree(false); renderPanel(); save(); }; });
-  $('pDead').onchange = (e) => { p.deceased = e.target.checked; if (!p.deceased) p.death = ''; drawTree(false); renderList(); renderPanel(); save(); };
-  $('pPhoto').onclick = () => pickFile('image/*', async (f) => { p.photo = await shrinkPhoto(f); drawTree(false); renderPanel(); save(); });
+  $('pDead').onchange = (e) => { p.deceased = e.target.checked; if (!p.deceased) { p.death = ''; p.deathPlace = ''; } drawTree(false); renderList(); renderPanel(); save(); };
+  $('pPhoto').onclick = () => pickFile('image/*', async (f) => { try { p.photo = await shrinkPhoto(f); } catch (_) { return; } drawTree(false); renderPanel(); save(); });
   if ($('pNoPhoto')) $('pNoPhoto').onclick = () => { p.photo = ''; drawTree(false); renderPanel(); save(); };
   const added = (np) => { if (!np) return; selected = np.id; drawTree(true); if (!lastLayout.cards.some((c) => c.pid === np.id)) { tree.focus = np.id; tree.rootFam = null; drawTree(true); } renderList(); renderPanel(); save(); const i = $('pFirst'); if (i) i.focus(); };
   $('aFather').onclick = () => canAdd() && added(setParent(p.id, 'm'));
@@ -748,7 +759,7 @@ function gedLong(L, lvl, tag, text) {
   // a long text is split into CONT (new line) and CONC (same line) pieces of at most 200 characters
   String(text).split(/\r?\n/).forEach((ln, i) => {
     const parts = gedText(ln).match(/[\s\S]{1,200}/g) || [''];
-    parts.forEach((pt, j) => L.push(i === 0 && j === 0 ? `${lvl} ${tag} ${pt}` : `${lvl + 1} ${j === 0 ? 'CONT' : 'CONC'} ${pt}`.trimEnd()));
+    parts.forEach((pt, j) => L.push(i === 0 && j === 0 ? (pt ? `${lvl} ${tag} ${pt}` : `${lvl} ${tag}`) : pt ? `${lvl + 1} ${j === 0 ? 'CONT' : 'CONC'} ${pt}` : `${lvl + 1} CONT`)); // keep spaces at CONC joins
   });
 }
 function toGedcom() {
@@ -872,7 +883,7 @@ function refreshAll(refit) { $('treeTitle').value = tree.title; drawTree(refit);
 function openWelcome() { ['wFirst', 'wLast', 'wBirth'].forEach((i) => { $(i).value = ''; }); if (!$('welcome').open) $('welcome').showModal(); }
 let toastTimer = 0;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 4000); }
-function validTree(t) { return t && typeof t.people === 'object' && typeof t.fams === 'object'; }
+function validTree(t) { return t && t.people && t.fams && typeof t.people === 'object' && typeof t.fams === 'object' && Object.values(t.people).every((p) => p && typeof p === 'object') && Object.values(t.fams).every((f) => f && Array.isArray(f.children)); }
 function loadTree(t) {
   tree = { title: t.title || '', people: t.people, fams: t.fams, focus: t.focus, rootFam: t.rootFam || null, chart: t.chart || 'tree', fanGen: t.fanGen || 5, poster: t.poster };
   selected = null;
