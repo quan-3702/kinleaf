@@ -9,7 +9,7 @@ const PRO_SKU = 'kinleaf_pro';
 const PRO_IDS = [PRO_SKU];
 let STORE_URL = 'https://apps.microsoft.com/detail/9NRR32J91340';
 let proAvailable = false; // Pro limits apply only when the Store actually sells the add-on
-try { if ('getDigitalGoodsService' in window && localStorage.getItem('kinleaf-proavail') === '1') proAvailable = true; } catch (_) {} // keep Pro limits when offline
+proAvailable = true; // owner's rule: Pro is never free – free limits apply everywhere (website, Store, offline) until Pro is bought
 let proSku = PRO_SKU;
 let isPro = false;
 try { isPro = localStorage.getItem('kinleaf-pro') === '1'; } catch (_) {}
@@ -42,7 +42,6 @@ async function checkPro() {
   if (!svc) return false;
   try {
     const details = await svc.getDetails(PRO_IDS).catch(() => []);
-    if (details.length) { proAvailable = true; try { localStorage.setItem('kinleaf-proavail', '1'); } catch (_) {} }
     if (details[0]) { proSku = details[0].itemId; if (!PRO_IDS.includes(proSku)) PRO_IDS.push(proSku); }
     const list = await svc.listPurchases();
     const owned = list.some((p) => PRO_IDS.includes(p.itemId));
@@ -62,6 +61,7 @@ async function openPro(reason) {
     $('restoreBtn').hidden = false;
     try {
       const [d] = await svc.getDetails([proSku]);
+      if (!d) proMessage((reason ? reason + ' ' : '') + 'Pro is being added to the Microsoft Store and will be on sale very soon – please check again in a day or two.');
       const price = d && d.price ? new Intl.NumberFormat(undefined, { style: 'currency', currency: d.price.currency }).format(Number(d.price.value)) : '';
       $('buyBtn').textContent = price ? `Unlock Pro – ${price}` : 'Unlock Pro';
     } catch (_) { $('buyBtn').textContent = 'Unlock Pro'; }
@@ -932,8 +932,10 @@ $('search').addEventListener('input', renderList);
 $('treeTitle').addEventListener('input', () => { tree.title = $('treeTitle').value; save(); });
 
 const fanPro = () => isFan() && needsPro('Printing and saving fan charts is part of Pro. You can look at the fan chart for free.');
-$('printBtn').onclick = () => { if (!fanPro()) printTree(); };
-$('imgBtn').onclick = () => { if (!fanPro()) savePicture(isFan() ? 3600 : 2400); };
+// a tree with more people than the free version holds (made in an older version) can be viewed and backed up; printing or saving it needs Pro
+const bigPro = () => people().length > FREE_PEOPLE && needsPro(`This tree has ${people().length} people. The free version holds up to ${FREE_PEOPLE} – you can view and back it up, and Pro prints and saves trees of any size.`);
+$('printBtn').onclick = () => { if (!fanPro() && !bigPro()) printTree(); };
+$('imgBtn').onclick = () => { if (!fanPro() && !bigPro()) savePicture(isFan() ? 3600 : 2400); };
 $('chartSel').onchange = (e) => {
   tree.chart = e.target.value;
   if (isFan() && selected && tree.people[selected]) tree.focus = selected;
@@ -959,6 +961,8 @@ $('restoreFileBtn').onclick = () => pickFile('.json,application/json', async (f)
   try {
     const d = JSON.parse(await f.text());
     if (d.app !== 'kinleaf' || !validTree(d.tree)) throw new Error('not a backup');
+    const n = Object.keys(d.tree.people).length;
+    if (n > FREE_PEOPLE && needsPro(`This backup holds ${n} people. The free version holds up to ${FREE_PEOPLE} – Pro opens the whole tree. The backup file is unchanged, so nothing is lost.`)) return;
     if (people().length && !confirm('Replace the tree on screen with the one from this backup file?')) return;
     loadTree(d.tree);
     toast('Backup opened');
