@@ -12,7 +12,21 @@ let proAvailable = false; // Pro limits apply only when the Store actually sells
 proAvailable = true; // owner's rule: Pro is never free – free limits apply everywhere (website, Store, offline) until Pro is bought
 let proSku = PRO_SKU;
 let isPro = false;
-try { isPro = localStorage.getItem('kinleaf-pro') === '1'; } catch (_) {}
+// the cached Pro flag is never trusted on the website (nothing can be bought there) and in the Store app only for 30 days
+// after the Store last confirmed the purchase (offline buyers stay Pro; after that the Store is asked again)
+const HAS_STORE = typeof window !== 'undefined' && 'getDigitalGoodsService' in window;
+const PRO_OK_MS = 30 * 864e5;
+function cachedPro() {
+  try {
+    if (!HAS_STORE || localStorage.getItem('kinleaf-pro') !== '1') return false;
+    const raw = localStorage.getItem('kinleaf-pro-ok');
+    if (raw == null) { localStorage.setItem('kinleaf-pro-ok', String(Date.now())); return true; } // a buyer from before this check counts as confirmed now, once
+    const ok = Number(raw);
+    return ok > 0 && ok <= Date.now() + 864e5 && Date.now() - ok < PRO_OK_MS;
+  } catch (_) { return false; }
+}
+function rememberPro(owned) { try { if (owned) { localStorage.setItem('kinleaf-pro', '1'); localStorage.setItem('kinleaf-pro-ok', String(Date.now())); } else { localStorage.removeItem('kinleaf-pro'); localStorage.removeItem('kinleaf-pro-ok'); } } catch (_) {} }
+isPro = cachedPro();
 const unlocked = () => isPro || !proAvailable;
 
 async function billing() {
@@ -21,7 +35,6 @@ async function billing() {
 }
 function setPro(v) {
   isPro = v;
-  try { localStorage.setItem('kinleaf-pro', v ? '1' : '0'); } catch (_) {}
   const b = $('proBtn');
   b.textContent = v ? '★ Pro' : '★ Get Pro';
   b.classList.toggle('is-pro', v);
@@ -45,7 +58,7 @@ async function checkPro() {
     if (details[0]) { proSku = details[0].itemId; if (!PRO_IDS.includes(proSku)) PRO_IDS.push(proSku); }
     const list = await svc.listPurchases();
     const owned = list.some((p) => PRO_IDS.includes(p.itemId));
-    if (owned || details.length) { setPro(owned); return owned; }
+    if (owned || details.length) { rememberPro(owned); setPro(owned); return owned; }
     setPro(isPro); // Store did not answer (offline): keep what we knew
     return isPro;
   } catch (_) { return isPro; }
@@ -1005,6 +1018,7 @@ $('proBtn').onclick = () => { if (!isPro) openPro(); };
 $('buyBtn').onclick = buyPro;
 $('restoreBtn').onclick = async () => { proMessage((await checkPro()) ? 'Pro restored. ★' : 'No Pro purchase found on this Microsoft account.'); };
 $('closePro').onclick = () => $('proDialog').close();
+window.addEventListener('afterprint', () => { $('printArea').innerHTML = ''; });
 
 (async () => {
   try { const t = await dbGet('tree'); if (validTree(t)) { tree = t; cleanup(); } } catch (_) {}

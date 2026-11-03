@@ -105,3 +105,7 @@ textarea { min-height: 70px; resize: vertical; }
 .poster-preview svg { max-width: 100%; max-height: calc(70vh - 28px); height: auto; box-shadow: 0 8px 26px rgba(0,0,0,.3); }
 .small { font-size: 13px; }
 @media (max-width: 760px) { .poster-grid { grid-template-columns: 1fr; } }
+
+/* feedback note */
+.feedback { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 12px 0 0; overflow-wrap: anywhere; }
+.feedback a { color: inherit; text-decoration: underline; }
