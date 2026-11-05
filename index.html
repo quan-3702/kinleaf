@@ -18,11 +18,14 @@
       <button id="printBtn" class="tb">🖨 Print</button>
       <button id="imgBtn" class="tb">🖼 Save picture</button>
       <button id="posterBtn" class="tb">🪧 Wall poster</button>
+      <button id="bookBtn" class="tb">📖 Family book</button>
       <button id="moreBtn" class="tb">☰ More</button>
       <button id="proBtn" class="pro-btn" hidden>★ Get Pro</button>
     </div>
     <div id="menu" class="menu" hidden>
       <button id="bigImgBtn">Save large picture for poster printing <span class="badge pro-only">PRO</span></button>
+      <button id="relMenuBtn">🔗 How are two people related?</button>
+      <button id="bookMenuBtn">📖 Family history book <span class="badge pro-only">PRO</span></button>
       <button id="backupBtn">Save a backup file</button>
       <button id="restoreFileBtn">Open a backup file…</button>
       <button id="gedOutBtn">Export GEDCOM file <span class="badge pro-only">PRO</span></button>
@@ -105,6 +108,46 @@
     </div>
   </dialog>
 
+  <dialog id="relDlg" class="dlg">
+    <h2>🔗 How are they related?</h2>
+    <p class="muted">Pick two people – Kinleaf works out the relationship, from grandparents to second cousins once removed and in-laws.</p>
+    <label class="field">Person<select id="relA"></select></label>
+    <div class="rel-swap"><button id="relSwap" class="ghost" title="Swap the two people">⇅ Swap</button></div>
+    <label class="field">and<select id="relB"></select></label>
+    <div id="relOut" class="rel-out" aria-live="polite"></div>
+    <div class="row-btns">
+      <button id="relShow" class="ghost" hidden>Show both in the tree</button>
+      <button id="relClose" class="primary">Close</button>
+    </div>
+  </dialog>
+
+  <dialog id="bookDlg" class="dlg poster-dlg book-dlg">
+    <h2>📖 Family history book</h2>
+    <p class="muted">A printed book of your family to keep or give: a cover with your tree, an entry for every person with photo, dates, places, marriages, children and stories, a birthday &amp; anniversary calendar and an index.</p>
+    <div class="poster-grid">
+      <div>
+        <label class="field">Title<input id="bkTitle" type="text" maxlength="60"></label>
+        <label class="field">Line under the title<input id="bkSub" type="text" maxlength="90" placeholder="e.g. Collected by Grandma Rose, 2026"></label>
+        <label class="field">Paper<select id="bkPaper"><option value="letter">Letter</option><option value="a4">A4</option></select></label>
+        <label class="field">Show how everyone is related to<select id="bkRel"></select></label>
+        <div class="bk-checks">
+          <label class="check"><input id="bk_cover" type="checkbox"> Cover with the family tree</label>
+          <label class="check"><input id="bk_photos" type="checkbox"> Photos</label>
+          <label class="check"><input id="bk_notes" type="checkbox"> Notes and stories</label>
+          <label class="check"><input id="bk_cal" type="checkbox"> Birthdays &amp; anniversaries</label>
+          <label class="check"><input id="bk_index" type="checkbox"> Index of names</label>
+        </div>
+        <p id="bkInfo" class="muted small"></p>
+        <div class="row-btns">
+          <button id="bkPrintBtn" class="primary">🖨 Print or save PDF <span class="badge pro-only">PRO</span></button>
+          <button id="bkClose" class="ghost">Close</button>
+        </div>
+        <p class="muted small">Tip: in the print window choose <b>Microsoft Print to PDF</b> to get a PDF you can e-mail to the whole family. The cover shows the chart that is on screen.</p>
+      </div>
+      <div id="bkPreview" class="book-preview"></div>
+    </div>
+  </dialog>
+
   <dialog id="proDialog" class="dlg">
     <h2>Kinleaf Pro</h2>
     <p class="muted">One-time purchase. Yours forever on this Microsoft account.</p>
@@ -113,6 +156,7 @@
       <li><strong>Wall poster designer</strong> – 4 framed styles, sizes up to 24 × 36 in; save a print-shop file or print it on Letter / A4 sheets at home</li>
       <li><strong>Large poster picture</strong> – sharp enough to print and hang on the wall</li>
       <li><strong>Fan charts</strong> – print or save a colourful fan of up to 7 generations of ancestors, perfect as a gift or wall poster</li>
+      <li><strong>Family history book</strong> – print or save as PDF a book with every person's photo, dates, marriages, children and stories, a birthday &amp; anniversary calendar and an index</li>
       <li><strong>GEDCOM import and export</strong> – move your tree to or from Ancestry, MyHeritage, FamilySearch and other programs</li>
     </ul>
     <p class="feedback">💬 Something not working the way you want? Tell me – <a href="mailto:thequan03072002@gmail.com?subject=Kinleaf%20feedback">thequan03072002@gmail.com</a>. I read every message and improve the app.</p>
